@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Expense Tracker v1.0</title>
+<style>
+:root{--p:#2563eb;--g:#16a34a;--r:#dc2626;--a:#d97706;--bg:#f1f5f9;--b:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
+body{background:var(--bg);color:#1e293b;font-size:15px}
+.hide{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;padding:14px}
+.box{background:#fff;border-radius:12px;padding:18px;box-shadow:0 2px 8px #0001;margin-bottom:14px}
+h2{margin-bottom:12px;font-size:19px}
+h3{font-size:15px;margin-bottom:8px}
+input,select,button,textarea{font-size:15px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;width:100%}
+button{background:var(--p);color:#fff;border:0;cursor:pointer;width:auto}
+button.sec2{background:#64748b}button.danger{background:var(--r)}
+label{display:block;font-size:13px;color:#64748b;margin-bottom:4px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.stat{color:#fff;border-radius:10px;padding:16px}.stat b{font-size:22px;display:block;margin-top:4px}
+.income{color:var(--g)}.expense{color:var(--r)}
+header{background:#fff;box-shadow:0 1px 6px #0001}
+header .wrap{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+header small{color:#64748b}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 14px;max-width:1100px;margin:0 auto}
+nav button{background:#fff;color:#334155;border:1px solid var(--b);white-space:nowrap}
+nav button.on{background:var(--p);color:#fff}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:560px}
+th,td{padding:9px;border-bottom:1px solid var(--b);text-align:left}th{background:#f8fafc}
+td button{padding:4px 8px;background:none}
+.chart{position:relative;height:240px}
+.bar{background:var(--b);border-radius:6px;height:12px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%}
+.alert{padding:10px;border-radius:8px;margin:6px 0;font-size:14px}
+.warn{background:#fef3c7;color:#92400e}.over{background:#fee2e2;color:#991b1b}
+.empty{text-align:center;color:#94a3b8;padding:20px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:12px 18px;border-radius:8px;color:#fff;z-index:60;max-width:92%}
+#toast.ok{background:var(--g)}#toast.bad{background:var(--r)}
+#load{position:fixed;inset:0;background:#fff8;display:flex;align-items:center;justify-content:center;z-index:50;font-weight:600}
+#login{max-width:400px;margin:8vh auto}
+.err{color:var(--r);font-size:14px;margin-top:10px;text-align:center}
+.f{margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="load" class="hide">⏳ Loading…</div>
+<div id="toast" class="hide"></div>
+
+<div id="login" class="box">
+  <h2 style="text-align:center">💰 Personal Expense Tracker <small>v1.0</small></h2>
+  <form id="cf" class="hide" onsubmit="saveCfg(event)">
+    <p class="f">First-time setup: paste your Supabase details (Project Settings → API).</p>
+    <div class="f"><label>Project URL</label><input id="cu" type="url" required placeholder="https://xxxx.supabase.co"></div>
+    <div class="f"><label>Anon public key</label><input id="ck" required placeholder="eyJ..."></div>
+    <button>Save &amp; Continue</button>
+  </form>
+  <form id="lf" onsubmit="login(event)">
+    <div class="f"><label>Email</label><input id="em" type="email" required autocomplete="username"></div>
+    <div class="f"><label>Password</label><input id="pw" type="password" required autocomplete="current-password"></div>
+    <button style="width:100%">Login</button>
+    <div class="err" id="lerr"></div>
+    <p style="text-align:center;margin-top:12px;font-size:13px"><a href="#" onclick="resetCfg(event)">Change Supabase settings</a></p>
+  </form>
+</div>
+
+<div id="app" class="hide">
+  <header><div class="wrap"><div><b>💰 Personal Expense Tracker</b> <small>Version 1.0</small></div><small id="who"></small></div></header>
+  <nav id="nav">
+    <button data-go="dash">📊 Dashboard</button><button data-go="tx">🧾 Transactions</button>
+    <button data-go="rep">📅 Monthly Reports</button><button data-go="bud">🎯 Budgets</button>
+    <button data-go="exp">⬇️ Export Data</button><button data-go="acc">👤 Account</button>
+  </nav>
+  <div class="wrap">
+
+  <section id="s-dash" class="sec">
+    <div class="grid" style="margin-bottom:14px">
+      <div class="stat" style="background:var(--g)">Total Income<b id="ci"></b></div>
+      <div class="stat" style="background:var(--r)">Total Expenses<b id="cx"></b></div>
+      <div class="stat" style="background:#0891b2">Current Balance<b id="cb"></b></div>
+      <div class="stat" style="background:#7c3aed">Transactions<b id="cn"></b></div>
+    </div>
+    <div class="grid2">
+      <div class="box"><h3>Income vs Expenses</h3><div class="chart"><canvas id="c1"></canvas></div></div>
+      <div class="box"><h3>Monthly Expense Trend (6 months)</h3><div class="chart"><canvas id="c2"></canvas></div></div>
+      <div class="box"><h3>Expenses by Category</h3><div class="chart"><canvas id="c3"></canvas></div></div>
+      <div class="box"><h3>Recent Transactions</h3><div class="tw"><table><tbody id="recent"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <section id="s-tx" class="sec hide">
+    <form id="tf" class="box" onsubmit="saveTx(event)">
+      <h2 id="fh">Add Transaction</h2>
+      <div class="grid">
+        <div><label>Description *</label><input id="fd" required maxlength="120"></div>
+        <div><label>Amount (₹) *</label><input id="fa" type="number" min="0.01" step="0.01" required></div>
+        <div><label>Type *</label><select id="ft" onchange="fillCats()"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+        <div><label>Category *</label><select id="fc" required></select></div>
+        <div><label>Date *</label><input id="fdt" type="date" required></div>
+        <div><label>Notes (optional)</label><input id="fn" maxlength="300"></div>
+      </div>
+      <p style="margin-top:12px"><button id="sb">Add</button> <button type="button" id="cn2" class="sec2 hide" onclick="cancelEdit()">Cancel edit</button></p>
+    </form>
+    <div class="box">
+      <h2>All Transactions</h2>
+      <div class="grid" style="margin-bottom:10px">
+        <input id="q" placeholder="🔍 Search description" oninput="table()">
+        <select id="xt" onchange="table()"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+        <select id="xc" onchange="table()"></select>
+        <div><input id="xf" type="date" title="From" onchange="table()"></div>
+        <div><input id="xto" type="date" title="To" onchange="table()"></div>
+        <select id="xs" onchange="table()"><option value="date-desc">Newest first</option><option value="date-asc">Oldest first</option><option value="amount-desc">Amount: high to low</option><option value="amount-asc">Amount: low to high</option></select>
+      </div>
+      <p id="fsum" style="margin-bottom:8px;color:#64748b"></p>
+      <div class="tw"><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="s-rep" class="sec hide">
+    <div class="box"><h2>Monthly Report</h2><label>Select month</label><input id="rm" type="month" onchange="rep()" style="max-width:220px"></div>
+    <div id="repOut"></div>
+  </section>
+
+  <section id="s-bud" class="sec hide">
+    <form class="box" onsubmit="saveBud(event)">
+      <h2>Set Monthly Budget</h2>
+      <div class="grid">
+        <div><label>Month</label><input id="bm" type="month" required onchange="renderBud()"></div>
+        <div><label>Budget for</label><select id="bc"></select></div>
+        <div><label>Amount (₹)</label><input id="ba" type="number" min="1" step="0.01" required></div>
+      </div>
+      <p style="margin-top:12px"><button>Save Budget</button></p>
+    </form>
+    <div id="budOut"></div>
+  </section>
+
+  <section id="s-exp" class="sec hide">
+    <div class="box">
+      <h2>Export Data (CSV for Excel)</h2>
+      <p style="margin-bottom:12px">Exports the transactions currently shown on the Transactions page, so set your search, type, category and date filters there first. Only your own records are exported.</p>
+      <button onclick="exportTx()">⬇️ Export filtered transactions</button>
+    </div>
+  </section>
+
+  <section id="s-acc" class="sec hide">
+    <div class="box"><h2>Account</h2><p style="margin-bottom:12px">Logged in as <b id="acc"></b></p><button class="danger" onclick="logout()">Logout</button></div>
+  </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+// Optional: paste details here, or enter them on the page the first time (saved in this browser).
+const SUPABASE_URL = "", SUPABASE_KEY = "";
+
+const CATS = {
+  expense: ["Food and Groceries","Travel and Transport","Shopping","Education","Bills and Utilities","Health and Personal Care","Entertainment","Rent and Housing","Family and Household","Other Expenses"],
+  income: ["Salary","Business Income","Freelance Income","Interest","Gifts","Other Income"]
+}; // To add a category later, just add its name to these lists.
+const PAL = ["#2563eb","#16a34a","#dc2626","#d97706","#7c3aed","#0891b2","#db2777","#65a30d","#475569","#ea580c"];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits: 2});
+const dfmt = d => d.split('-').reverse().join('-');
+const pad = n => String(n).padStart(2, '0');
+const sum = (a, ty) => a.filter(t => t.type === ty).reduce((s, t) => s + t.amount, 0);
+const byCat = a => a.filter(t => t.type === 'expense').reduce((o, t) => (o[t.category] = (o[t.category] || 0) + t.amount, o), {});
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const mlabel = k => new Date(k + '-01T00:00:00').toLocaleString('en-IN', {month: 'short', year: '2-digit'});
+let db = null, user = null, tx = [], bg = [], editId = null, charts = {};
+
+(function () {
+  let u = SUPABASE_URL, k = SUPABASE_KEY;
+  if (!u || !k) try { u = localStorage.getItem('sb_url') || ''; k = localStorage.getItem('sb_key') || ''; } catch (e) {}
+  if (u && k) try { db = window.supabase.createClient(u, k); } catch (e) { console.error(e); }
+})();
+
+function saveCfg(e) {
+  e.preventDefault();
+  try { localStorage.setItem('sb_url', $('cu').value.trim().replace(/\/+$/, '')); localStorage.setItem('sb_key', $('ck').value.trim()); } catch (x) {}
+  location.reload();
+}
+function resetCfg(e) {
+  e.preventDefault();
+  try { localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key'); } catch (x) {}
+  location.reload();
+}
+function toast(m, bad) {
+  const t = $('toast'); t.textContent = m; t.className = bad ? 'bad' : 'ok';
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'hide', 4500);
+}
+const busy = on => $('load').classList.toggle('hide', !on);
+const errText = e => /fetch|network/i.test(e.message) ? 'Connection problem. Check your internet and try again.' : e.message;
+
+async function login(e) {
+  e.preventDefault(); $('lerr').textContent = ''; busy(1);
+  const { data, error } = await db.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
+  busy(0);
+  if (error) { $('lerr').textContent = /invalid/i.test(error.message) ? 'Invalid email or password.' : errText(error); return; }
+  start(data.user);
+}
+async function start(u) {
+  user = u;
+  $('login').classList.add('hide'); $('app').classList.remove('hide');
+  $('who').textContent = u.email; $('acc').textContent = u.email;
+  $('xc').innerHTML = '<option value="">All categories</option>' + [...CATS.expense, ...CATS.income].map(c => `<option>${esc(c)}</option>`).join('');
+  $('bc').innerHTML = '<option value="ALL">Overall monthly budget</option>' + CATS.expense.map(c => `<option>${esc(c)}</option>`).join('');
+  const m = today().slice(0, 7); $('rm').value = m; $('bm').value = m;
+  fillCats(); $('fdt').value = today();
+  await load(); go('dash');
+}
+async function logout() { await db.auth.signOut(); reset(); }
+function reset() {
+  user = null; tx = []; bg = []; editId = null;
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  ['rows', 'recent', 'repOut', 'budOut'].forEach(i => $(i).innerHTML = '');
+  $('app').classList.add('hide'); $('login').classList.remove('hide'); $('lf').reset(); $('lerr').textContent = '';
+}
+
+async function load() {
+  busy(1);
+  const a = await db.from('transactions').select('*').eq('user_id', user.id).order('transaction_date', { ascending: false }).order('created_at', { ascending: false });
+  const b = await db.from('budgets').select('*').eq('user_id', user.id);
+  busy(0);
+  if (a.error || b.error) { toast('Could not load data: ' + errText(a.error || b.error) + ' (Have you run migration_v1.sql?)', 1); return; }
+  tx = a.data.map(t => ({ ...t, amount: Number(t.amount) }));
+  bg = b.data.map(t => ({ ...t, amount: Number(t.amount) }));
+  dash(); table(); rep(); renderBud();
+}
+
+function go(n) {
+  document.querySelectorAll('.sec').forEach(s => s.classList.toggle('hide', s.id !== 's-' + n));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.go === n));
+  if (n === 'dash') dash();
+}
+$('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b && user) go(b.dataset.go); });
+
+function chart(id, type, labels, data, color) {
+  if (charts[id]) charts[id].destroy();
+  const pie = type === 'doughnut';
+  charts[id] = new Chart($(id), { type, data: { labels, datasets: [{ data, backgroundColor: color, borderColor: pie ? '#fff' : color, label: '₹' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: pie } } } });
+}
+function rowHtml(t, act) {
+  return `<tr><td>${dfmt(t.transaction_date)}</td><td>${esc(t.description)}${t.notes ? `<br><small>${esc(t.notes)}</small>` : ''}</td><td>${esc(t.category)}</td>
+  <td class="${t.type}">${t.type === 'income' ? '+' : '−'}${fmt(t.amount)}</td>${act ? `<td><button class="ed" data-id="${t.id}">✏️</button><button class="dl" data-id="${t.id}">🗑️</button></td>` : ''}</tr>`;
+}
+function dash() {
+  const i = sum(tx, 'income'), x = sum(tx, 'expense');
+  $('ci').textContent = fmt(i); $('cx').textContent = fmt(x); $('cb').textContent = fmt(i - x); $('cn').textContent = tx.length;
+  chart('c1', 'bar', ['Income', 'Expenses'], [i, x], ['#16a34a', '#dc2626']);
+  const ms = [], d = new Date();
+  for (let k = 5; k >= 0; k--) { const e = new Date(d.getFullYear(), d.getMonth() - k, 1); ms.push(e.getFullYear() + '-' + pad(e.getMonth() + 1)); }
+  chart('c2', 'line', ms.map(mlabel), ms.map(k => sum(tx.filter(t => t.transaction_date.startsWith(k)), 'expense')), '#dc2626');
+  const c = byCat(tx); chart('c3', 'doughnut', Object.keys(c), Object.values(c), PAL);
+  $('recent').innerHTML = tx.slice(0, 5).map(t => rowHtml(t, false)).join('') || '<tr><td class="empty">No transactions yet</td></tr>';
+}
+
+function fillCats(sel) {
+  $('fc').innerHTML = CATS[$('ft').value].map(c => `<option>${esc(c)}</option>`).join('');
+  if (sel) $('fc').value = sel;
+}
+function cancelEdit() {
+  editId = null; $('tf').reset(); fillCats(); $('fdt').value = today();
+  $('sb').textContent = 'Add'; $('fh').textContent = 'Add Transaction'; $('cn2').classList.add('hide');
+}
+async function saveTx(e) {
+  e.preventDefault();
+  const description = $('fd').value.trim(), amount = parseFloat($('fa').value), type = $('ft').value,
+    category = $('fc').value, transaction_date = $('fdt').value, notes = $('fn').value.trim() || null;
+  if (!description || !category || !transaction_date) return toast('Please fill all required fields.', 1);
+  if (!isFinite(amount) || amount <= 0) return toast('Amount must be greater than zero.', 1);
+  busy(1);
+  const p = { description, amount, type, category, transaction_date, notes };
+  const r = editId ? await db.from('transactions').update(p).eq('id', editId).eq('user_id', user.id)
+                   : await db.from('transactions').insert({ ...p, user_id: user.id });
+  busy(0);
+  if (r.error) return toast('Could not save: ' + errText(r.error), 1);
+  toast(editId ? 'Transaction updated.' : 'Transaction added.');
+  cancelEdit(); await load();
+}
+async function delTx(id) {
+  if (!confirm('Delete this transaction? This cannot be undone.')) return;
+  busy(1);
+  const r = await db.from('transactions').delete().eq('id', id).eq('user_id', user.id);
+  busy(0);
+  if (r.error) return toast('Could not delete: ' + errText(r.error), 1);
+  toast('Transaction deleted.'); await load();
+}
+function filt() {
+  const q = $('q').value.toLowerCase(), ty = $('xt').value, c = $('xc').value, f = $('xf').value, to = $('xto').value, [k, dir] = $('xs').value.split('-');
+  return tx.filter(t => (!q || t.description.toLowerCase().includes(q)) && (!ty || t.type === ty) && (!c || t.category === c) &&
+    (!f || t.transaction_date >= f) && (!to || t.transaction_date <= to))
+    .sort((a, b) => { const v = k === 'amount' ? a.amount - b.amount : a.transaction_date.localeCompare(b.transaction_date); return dir === 'asc' ? v : -v; });
+}
+function table() {
+  const r = filt();
+  $('rows').innerHTML = r.map(t => rowHtml(t, true)).join('') || '<tr><td colspan="5" class="empty">No transactions found</td></tr>';
+  $('fsum').textContent = `${r.length} records · Income ${fmt(sum(r, 'income'))} · Expenses ${fmt(sum(r, 'expense'))}`;
+}
+$('rows').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = Number(b.dataset.id);
+  if (b.classList.contains('dl')) return delTx(id);
+  const t = tx.find(x => x.id === id); if (!t) return;
+  editId = id; $('fd').value = t.description; $('fa').value = t.amount; $('ft').value = t.type; fillCats(t.category);
+  $('fdt').value = t.transaction_date; $('fn').value = t.notes || '';
+  $('sb').textContent = 'Update'; $('fh').textContent = 'Edit Transaction'; $('cn2').classList.remove('hide');
+  $('tf').scrollIntoView({ behavior: 'smooth' });
+});
+
+function rep() {
+  const m = $('rm').value; if (!m) { $('repOut').innerHTML = ''; return; }
+  const pd = new Date(m + '-01T00:00:00'); pd.setMonth(pd.getMonth() - 1);
+  const pm = pd.getFullYear() + '-' + pad(pd.getMonth() + 1);
+  const cur = tx.filter(t => t.transaction_date.startsWith(m)), prev = tx.filter(t => t.transaction_date.startsWith(pm));
+  if (!cur.length) { $('repOut').innerHTML = '<div class="box empty">No transactions in this month.</div>'; return; }
+  const i = sum(cur, 'income'), x = sum(cur, 'expense'), s = i - x, px = sum(prev, 'expense'), pi = sum(prev, 'income');
+  const cats = Object.entries(byCat(cur)).sort((a, b) => b[1] - a[1]);
+  const big = cur.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount)[0];
+  const rate = i > 0 ? (s / i * 100).toFixed(1) + '%' : 'Not available (no income this month)';
+  const cmp = (a, b, w) => !prev.length ? 'No data for previous month' : a === b ? `Same as previous month (${fmt(b)})` : `${fmt(Math.abs(a - b))} ${a > b ? 'more' : 'less'} ${w} than previous month (${fmt(b)})`;
+  $('repOut').innerHTML = `<div class="box"><h2>${mlabel(m)} Summary</h2>
+    <p style="margin-bottom:12px">${s >= 0 ? `You saved <b class="income">${fmt(s)}</b> this month.` : `You spent <b class="expense">${fmt(-s)}</b> more than you earned this month.`}</p>
+    <div class="grid"><div class="stat" style="background:var(--g)">Income<b>${fmt(i)}</b></div><div class="stat" style="background:var(--r)">Expenses<b>${fmt(x)}</b></div>
+    <div class="stat" style="background:#0891b2">Savings / Surplus<b>${fmt(s)}</b></div><div class="stat" style="background:#7c3aed">Savings rate<b style="font-size:16px">${rate}</b></div></div></div>
+    <div class="box"><h3>Compared with previous month</h3><p>Income: ${cmp(i, pi, 'income')}</p><p>Expenses: ${cmp(x, px, 'spent')}</p></div>
+    <div class="box"><h3>Highlights</h3><p>Highest expense category: <b>${cats.length ? esc(cats[0][0]) + ' (' + fmt(cats[0][1]) + ')' : 'None'}</b></p>
+    <p>Largest single expense: <b>${big ? esc(big.description) + ' (' + fmt(big.amount) + ', ' + dfmt(big.transaction_date) + ')' : 'None'}</b></p></div>
+    <div class="box"><h3>Expenses by category</h3><div class="tw"><table><thead><tr><th>Category</th><th>Amount</th><th>Share</th></tr></thead><tbody>
+    ${cats.map(c => `<tr><td>${esc(c[0])}</td><td>${fmt(c[1])}</td><td>${(c[1] / x * 100).toFixed(1)}%</td></tr>`).join('') || '<tr><td colspan="3" class="empty">No expenses</td></tr>'}</tbody></table></div>
+    <p style="margin-top:12px"><button onclick="exportMonth('${m}')">⬇️ Export this month (CSV)</button></p></div>`;
+}
+
+async function saveBud(e) {
+  e.preventDefault();
+  const month = $('bm').value, category = $('bc').value, amount = parseFloat($('ba').value);
+  if (!month) return toast('Select a month.', 1);
+  if (!isFinite(amount) || amount <= 0) return toast('Budget must be greater than zero.', 1);
+  busy(1);
+  const r = await db.from('budgets').upsert({ user_id: user.id, month, category, amount }, { onConflict: 'user_id,month,category' });
+  busy(0);
+  if (r.error) return toast('Could not save budget: ' + errText(r.error), 1);
+  toast('Budget saved.'); $('ba').value = ''; await load();
+}
+async function delBud(id) {
+  if (!confirm('Delete this budget?')) return;
+  busy(1);
+  const r = await db.from('budgets').delete().eq('id', id).eq('user_id', user.id);
+  busy(0);
+  if (r.error) return toast('Could not delete budget: ' + errText(r.error), 1);
+  toast('Budget deleted.'); await load();
+}
+function renderBud() {
+  const m = $('bm').value, list = bg.filter(b => b.month === m);
+  if (!m || !list.length) { $('budOut').innerHTML = '<div class="box empty">No budgets set for this month.</div>'; return; }
+  const exp = tx.filter(t => t.type === 'expense' && t.transaction_date.startsWith(m));
+  $('budOut').innerHTML = list.sort((a, b) => a.category === 'ALL' ? -1 : a.category.localeCompare(b.category)).map(b => {
+    const spent = (b.category === 'ALL' ? exp : exp.filter(t => t.category === b.category)).reduce((s, t) => s + t.amount, 0);
+    const pct = spent / b.amount * 100, col = pct >= 100 ? 'var(--r)' : pct >= 80 ? 'var(--a)' : 'var(--g)', name = b.category === 'ALL' ? 'Overall monthly budget' : b.category;
+    return `<div class="box"><h3>${esc(name)}</h3>
+      <p>Budget ${fmt(b.amount)} · Spent ${fmt(spent)} · ${spent > b.amount ? 'Over by ' + fmt(spent - b.amount) : 'Remaining ' + fmt(b.amount - spent)} · <b>${pct.toFixed(0)}% used</b></p>
+      <div class="bar"><i style="width:${Math.min(100, pct)}%;background:${col}"></i></div>
+      ${pct >= 100 ? '<div class="alert over">⚠️ Budget reached or exceeded!</div>' : pct >= 80 ? '<div class="alert warn">⚠️ You have used 80% or more of this budget.</div>' : ''}
+      <button class="danger" onclick="delBud(${b.id})">Delete budget</button></div>`;
+  }).join('');
+}
+
+function csv(rows, name) {
+  const q = v => { v = String(v ?? ''); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
+  const L = [['Date', 'Description', 'Type', 'Category', 'Amount (INR)', 'Notes'].map(q).join(',')]
+    .concat(rows.map(t => [q(t.transaction_date), q(t.description), q(t.type), q(t.category), t.amount.toFixed(2), q(t.notes)].join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportTx() { const r = filt(); if (!r.length) return toast('No transactions to export.', 1); csv(r, 'transactions_' + today() + '.csv'); toast('Exported ' + r.length + ' transactions.'); }
+function exportMonth(m) { const r = tx.filter(t => t.transaction_date.startsWith(m)).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date)); if (!r.length) return toast('Nothing to export.', 1); csv(r, 'report_' + m + '.csv'); toast('Monthly report exported.'); }
+
+(async function init() {
+  if (!db) { $('cf').classList.remove('hide'); $('lf').classList.add('hide'); return; }
+  db.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && user) reset(); });
+  const { data } = await db.auth.getSession();
+  if (data.session) start(data.session.user);
+})();
+</script>
+</body>
+</html>
